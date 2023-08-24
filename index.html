@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
+    <title>MNDNR: WHAF Practicum</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.20/esri/themes/light/main.css">
+    <style>
+      html, body, #mapDiv {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+      }
+      #textbox{
+        background-color: #fff;
+        box-shadow: 0 0 5px #888;
+        font-size: 1.1em;
+        max-width: 15em;
+        padding: 0.5em;
+        position: absolute;
+        right: 20px;
+        top: 20px;
+        z-index: 40;
+      }
+    </style>
+    <script src="https://js.arcgis.com/4.20/"></script>
+    <script>
+        
+  require([
+    "esri/Map", "esri/views/MapView", "esri/layers/FeatureLayer", "esri/Graphic", "esri/symbols/SimpleFillSymbol", "esri/symbols/SimpleLineSymbol", "esri/Color", "esri/geometry/Circle", "esri/rest/support/Query", "esri/geometry/Point", "esri/layers/GraphicsLayer"
+  ], function(
+    MapView, FeatureLayer, Graphic, SimpleFillSymbol, SimpleLineSymbol, Color, Circle, Query, Point, GraphicsLayer, Map
+  ) {
+  
+	const feedlotFL = new FeatureLayer({
+      url: "https://arcgis.dnr.state.mn.us/arcgis/rest/services/ewr/practicum_feedlot/MapServer/0",
+	  outFields: ["*"]
+    });
+	
+	// Selected feedlots
+	const selectedFeedlotsGL = new GraphicsLayer();
+	
+	// Map
+	const feedlotMap = new Map({
+		basemap: "topo",
+		layers: [feedlotFL, selectedFeedlotsGL]
+	});
+	
+	// View
+	const mapView = new MapView({
+      container: "mapDiv",
+	  map: feedlotMap
+    });
+	
+	mapView.on("click", evt => {
+		// TODO: Clear the graphics
+		
+		const circleSymb = new SimpleFillSymbol(SimpleFillSymbol.STYLE_NULL,
+		  new SimpleLineSymbol(SimpleLineSymbol.STYLE_SHORTDASHDOTDOT,
+		  new Color([0, 0, 0]),2), 
+		  new Color([255, 255, 0, 0.25])
+		);   
+		
+		// Buffer type
+		const circle = new Circle({
+			center: evt.mapPoint,
+			radius: 25,
+			// geodesic: true,
+			radiusUnit: "feet"
+		});
+	  
+		const bufferGraphic = new Graphic(circle, circleSymb);
+		mapView.graphics.add(bufferGraphic);
+		  
+		let query = new Query({
+			geometry: mapView.toMap(evt),
+			distance: 25,
+			units: "feet",
+			spatialRelationship: "intersects",
+			returnGeometry: true,
+			outFields: ["*"]
+		});
+	  
+		feedlotFL.queryFeatures(query).then(response => {
+
+			document.getElementById('textbox').innerHTML = "<b>The number of feedlots within the buffer is <i>" + feedlotCount + "</i>.</b>"
+			
+			const selectedFeedlots = [];
+			for (let i = 0; i < feedlotCount; i++) {
+				selectedFeedlots.push(response.features[i]);
+			}
+		
+			addGraphics(selectedFeedlots);
+		
+			function addGraphics(feedlots) {
+				
+				feedlots.forEach(function(feature){
+				  const eachSelectedFeedlotPt = new Graphic({
+					geometry: feature.geometry,
+					symbol: {
+					 type: "simple-marker",
+					  color: [0,0,0],
+					  outline: {
+					   width: 2,
+					   color: [0,255,255],
+					 },
+					  size: "10px"
+					},
+				  });
+				  selectedFeedlotsGL.add(eachSelectedFeedlotPt);
+				});
+			}
+	
+		});
+		
+	});
+      
+  });
+      
+</script>
+  </head>
+  <body>
+    <span id="textbox">Click on the map to select feedlots within 10 miles</span>
+    <div id="mapDiv"></div>
+  </body>
+</html>
